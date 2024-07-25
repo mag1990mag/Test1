@@ -1,0 +1,76 @@
+# Define source and destination file paths
+$sourceFile = "C:\Devel\Prj02\pr01.png"
+$destFile = "C:\Devel\Prj02\pr01_out.png"
+$hexFile = "C:\Devel\Prj02\hex.txt"
+$hexFile2 = "C:\Devel\Prj02\hex2.txt"  # New file for $hexContent2
+$binaryOutputFile = "C:\Devel\Prj02\pr01_hexout.png"  # File to save binary content
+
+# Define chunk size calculation (in bytes)
+$chunkSize = 61 * 237 / 3
+
+# Remove the destination, hex files, and hexFile2 if they already exist
+if (Test-Path $destFile) {
+    Remove-Item $destFile
+}
+if (Test-Path $hexFile) {
+    Remove-Item $hexFile
+}
+if (Test-Path $hexFile2) {
+    Remove-Item $hexFile2
+}
+if (Test-Path $binaryOutputFile) {
+    Remove-Item $binaryOutputFile
+}
+
+# Read and write in chunks using native PowerShell cmdlets
+$offset = 0
+Get-Content -Path $sourceFile -ReadCount $chunkSize -Encoding Byte | ForEach-Object {
+    # Convert the chunk to hexadecimal format
+    $hexContent = ($_ | ForEach-Object { $_.ToString("X2") }) -join ' '
+
+    # Append the hexadecimal content to the hex file
+    Add-Content -Path $hexFile -Value $hexContent
+
+    # Append the chunk to the destination file
+    Add-Content -Path $destFile -Value $_ -Encoding Byte
+
+    # Create $hexContent2 with incremented hex values
+    $hexContent2 = ""
+
+    foreach ($hexValue in ($hexContent -split ' ')) {
+        $nextHex = [convert]::ToInt32($hexValue, 16) + 1
+        if ($nextHex -gt 255) {
+            $nextHex = 0
+        }
+        $hexContent2 += '{0:X2} ' -f $nextHex
+    }
+
+    # Trim trailing space from $hexContent2
+    $hexContent2 = $hexContent2.Trim()
+
+    # Output $hexContent2 (optional, for verification)
+    Write-Output "HexContent2: $hexContent2"
+
+    # Append $hexContent2 to hexadecimal2.txt
+    Add-Content -Path $hexFile2 -Value $hexContent2
+
+    # Update offset for the next chunk
+    $offset += $_.Length
+}
+
+# Read the content of the hex file
+$hexData = Get-Content -Path $hexFile -Raw
+
+# Convert the hexadecimal data back to binary
+$binaryData = @()
+foreach ($hexValue in ($hexData -split ' ')) {
+    # Ensure hexValue is a valid 2-character hexadecimal string
+    if ($hexValue.Length -eq 2 -and $hexValue -match '^[0-9A-Fa-f]{2}$') {
+        $binaryData += [Convert]::ToByte($hexValue, 16)
+    }
+}
+
+# Save the binary content to the output file
+# [System.IO.File]::WriteAllBytes($binaryOutputFile, $binaryData)
+Add-Content -Path $binaryOutputFile -Value $binaryData -Encoding Byte
+
